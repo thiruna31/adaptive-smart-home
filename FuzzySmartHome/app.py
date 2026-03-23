@@ -35,107 +35,150 @@ except ImportError:
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
     page_title="Adaptive Smart Home Controller",
-    page_icon="🌡️",
-    layout="wide"
+    page_icon="❄️",
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# --- HEADER ---
-st.title("🌡️ Adaptive Smart Home Controller")
-st.markdown("""
-**Research Objective:**  
-To demonstrate an **Autonomous Energy Management System (AEMS)** that optimizes HVAC power consumption using **Mamdani Fuzzy Inference**. 
+# --- STYLING & INTRO ---
+st.title("❄️ Adaptive Energy Management System")
+st.markdown("### `System Status: ONLINE` | `Mode: Autonomous`")
 
-**Key Value Proposition:**
-Unlike traditional "Threshold-based" thermostats (ON/OFF), this AI controller provides **smooth, continuous modulation** of cooling power based on multiple conflicting variables (Temp, Humidity, Occupancy). This results in:
-1.  **Energy Efficiency**: Prevents short-cycling and over-cooling.
-2.  **Thermal Comfort**: Adapts to "feels-like" temperature (heat index) rather than just dry bulb temperature.
-3.  **Scalability**: Logic can be deployed on edge devices (Raspberry Pi/Microcontrollers).
-""")
+with st.expander("ℹ️  System Architecture & Research Abstract", expanded=False):
+    st.markdown("""
+    **Objective:** Optimize HVAC energy consumption while maintaining thermal comfort.
+    
+    **Methodology:** 
+    This system utilizes a **Mamdani Fuzzy Inference System (FIS)**. Unlike binary (ON/OFF) controllers, it computes a continuous variable output (0-100%) based on linguistic rules.
+    
+    **Inference Process:**
+    1.  **Fuzzification**: Converts crisp sensor inputs (e.g., 25°C) into fuzzy membership degrees (e.g., 0.8 'Warm').
+    2.  **Rule Evaluation**: Applies logical rules (e.g., *IF Warm AND Humid THEN High Cooling*).
+    3.  **Aggregation**: Combines the results of all active rules.
+    4.  **Defuzzification**: Converts the aggregated fuzzy set into a single crisp output using the **Centroid Method**.
+    """)
+
 st.divider()
 
 # --- SIDEBAR: SENSORS (INPUTS) ---
-st.sidebar.header("1. Environmental Sensors")
-st.sidebar.info("Simulate real-time sensor data feeds.")
+st.sidebar.header("🎛️ Sensor Inputs")
+st.sidebar.markdown("Simulate environmental conditions.")
 
-temperature = st.sidebar.slider("Ambient Temperature (°C)", 10, 45, 25, help="Input from localized thermal sensors.")
-humidity = st.sidebar.slider("Relative Humidity (%)", 0, 100, 50, help="Input from hygrometers. High humidity increases 'feels-like' temp.")
-occupancy = st.sidebar.slider("Active Occupancy (People)", 0, 10, 2, help="Input from PIR/Infrared motion counters.")
+# Input Sliders
+temp = st.sidebar.slider("🌡️ Temperature (°C)", 10.0, 45.0, 26.0, 0.5)
+hum = st.sidebar.slider("💧 Humidity (%)", 0, 100, 60, 1)
+occ = st.sidebar.slider("👥 Occupancy (People)", 0, 10, 2, 1)
+
+st.sidebar.markdown("---")
+st.sidebar.caption("Adaptive Controller v2.1")
 
 # --- ENGINE COMPUTATION ---
-result_power = 0.0
-SIM_ERROR = None
-
 try:
+    # Initialize Engine (Cached in session state if needed, but fast enough to re-init)
     engine = FuzzyACEngine()
+    
+    # Compute Output
+    power_output = engine.compute(temp, hum, occ)
+    
+    # Retrieve simulation state for visualization
     sim = engine.get_simulation()
-
-    sim.input['temperature'] = temperature
-    sim.input['humidity'] = humidity
-    sim.input['occupancy'] = occupancy
-
-    sim.compute()
-    result_power = sim.output['ac_power']
+    vars_ = engine.get_variables()
 
 except Exception as e:
-    SIM_ERROR = str(e)
-    # Default to 0 if error
-    result_power = 0.0
+    st.error(f"Critical System Failure: {e}")
+    st.stop()
 
-# --- OUTPUTS (Main Area) ---
-st.subheader("2. System Decisions (Inference Output)")
-
+# --- DASHBOARD ROW 1: METRICS ---
 col1, col2, col3 = st.columns(3)
 
-# Metric 1: AC Power
-col1.metric("AC Compressor Load", f"{result_power:.1f}%", help="Frequency modulation (0-100%).")
+# 1. Power Output Metric
+current_watts = (power_output / 100) * 3500  # Max 3500W system
+with col1:
+    st.metric(label="Compressor Load", value=f"{power_output:.1f}%")
+    st.progress(int(power_output) / 100)
 
-# Metric 2: Status
-status = "STANDBY"
-if result_power > 85: 
-    status = "⚠️ TURBO COOLING"
-elif result_power > 60: 
-    status = "⬆️ HIGH DEMAND"
-elif result_power > 30: 
-    status = "➡️ COMFORT MODE"
-elif result_power > 5: 
-    status = "⬇️ ECO SAVING"
+# 2. Operational State Metric
+state_label = "IDLE"
+state_emoji = "💤"
 
-col2.metric("Operational State", status)
+if power_output > 0:
+    if power_output < 30:
+        state_label = "ECO / LOW"
+        state_emoji = "🍃"
+    elif power_output < 70:
+        state_label = "BALANCED"
+        state_emoji = "⚖️"
+    elif power_output < 90:
+        state_label = "HIGH COOLING"
+        state_emoji = "❄️"
+    else:
+        state_label = "MAX POWER"
+        state_emoji = "🚀"
 
-# Metric 3: Watts (Estimated)
-watts = (result_power / 100) * 3500  # Max 3500W
-cost_est = (watts/1000) * 0.15 * 24 # $0.15/kWh for 24h
-col3.metric("Est. Power Draw", f"{int(watts)} W", f"${cost_est:.2f}/day")
+with col2:
+    st.metric(label="Operational Mode", value=f"{state_label} {state_emoji}")
+    st.caption(f"System logic has determined this is the optimal state.")
 
-if SIM_ERROR:
-    st.error(f"Inference Engine Failure: {SIM_ERROR}")
+# 3. Cost Estimate Metric
+kwh_cost = 0.15 # $0.15 per kWh
+daily_cost = (current_watts / 1000) * 24 * kwh_cost
+with col3:
+    st.metric(label="Est. Power Draw", value=f"{int(current_watts)} W", delta=f"${daily_cost:.2f} / day")
 
 st.divider()
 
-# --- VISUALIZATION ---
-st.subheader("3. Explainable AI (XAI) Analysis")
-st.write("Visualizing the **Aggregate Fuzzy Set**. The black line represents the **Centroid Defuzzification**, which converts the qualitative inference into a precise control signal.")
+# --- VISUALIZATION SECTION ---
+st.subheader("📊 Real-time Logic Analysis")
 
-if st.checkbox("Show Logic Visualization", value=True):
+st.markdown("Monitor the internal decision-making process.")
+
+tab1, tab2 = st.tabs(["Decision Surface (Output)", "Sensor Activation (Inputs)"])
+
+# Visualization Helper
+def plot_fuzzy_var(variable, simulation, title):
     try:
-        # Create figure for the AC Power output
-        fig, ax = plt.subplots(figsize=(10, 4))
-        
-        # We need to manually call .view(sim=sim)
-        try:
-           engine.ac_power.view(sim=sim)
-            # Display in Streamlit
-           st.pyplot(plt.gcf())
-        except:
-           pass # Sometimes skfuzzy throws warnings on non-interactive backends
-
-        # Clear memory
-        plt.clf() 
-        plt.close(fig)
-        
+        fig, ax = plt.subplots(figsize=(8, 3))
+        variable.view(sim=simulation)
+        plt.title(title)
+        return fig
     except Exception as e:
-        st.warning(f"Visualization not available: {e}")
+        st.warning(f"Could not plot {title}: {e}")
+        return None
 
-# Footer
-st.markdown("---")
-st.caption("Adaptive Smart Environment Controller v2.0 | Accurate Mamdani Inference")
+with tab1:
+    st.markdown("#### Aggregated Output & Defuzzification")
+    st.caption("The black line represents the **Center of Gravity (Centroid)**, which is the final crisp output sent to the AC unit.")
+    
+    # Plotting Consequent
+    try:
+        # Create figure explicitly to avoid global state issues
+        # engine.ac_power is the Consequent object
+        # calling .view(sim=sim) populates the current figure
+        fig, ax = plt.subplots(figsize=(10, 4))
+        vars_['ac_power'].view(sim=sim)
+        st.pyplot(fig)
+        plt.close(fig) # Clean up
+    except Exception as e:
+        st.error(f"Visualization Error: {e}")
+
+with tab2:
+    st.markdown("#### Input Membership Activation")
+    st.caption("See which linguistic terms (Cold, Warm, Hot, etc.) are triggered by current sensor values.")
+    
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        st.markdown("**Temperature**")
+        fig = plot_fuzzy_var(vars_['temperature'], sim, "")
+        if fig: st.pyplot(fig); plt.close(fig)
+
+    with c2:
+        st.markdown("**Humidity**")
+        fig = plot_fuzzy_var(vars_['humidity'], sim, "")
+        if fig: st.pyplot(fig); plt.close(fig)
+
+    with c3:
+        st.markdown("**Occupancy**")
+        fig = plot_fuzzy_var(vars_['occupancy'], sim, "")
+        if fig: st.pyplot(fig); plt.close(fig)
+

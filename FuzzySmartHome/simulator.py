@@ -30,17 +30,6 @@ class SmartHomeSimulator:
             raise
 
     def simulate_scenario(self, temp: float, humidity: float, occupancy: int) -> float:
-        """
-        Computes the Defuzzified AC Power percentage for a single input vector.
-
-        Args:
-            temp (float): Temperature in Celsius.
-            humidity (float): Relative Humidity (0-100%).
-            occupancy (int): Number of people.
-
-        Returns:
-            float: Defuzzified AC Power Output (0-100%).
-        """
         try:
             # Set inputs
             self.simulation.input['temperature'] = temp
@@ -60,9 +49,6 @@ class SmartHomeSimulator:
             return 0.0
 
     def run_benchmark(self):
-        """
-        Runs a suite of standard test scenarios to validate system behavior.
-        """
         scenarios = [
             ("Cold Empty Room", 12, 20, 0),
             ("Hot Crowded Party", 35, 85, 9),
@@ -127,9 +113,7 @@ class SmartHomeSimulator:
             logger.error(f"Visualization error (ensure matplotlib backend is correct): {e}")
 
 def main():
-    """Main execution entry point."""
-    print("Adaptive Smart Environment Controller - Simulator v2.0")
-    print("-----------------------------------------------------")
+    print("Adaptive Smart Environment Controller Simulator")
     
     try:
         sim_env = SmartHomeSimulator()
@@ -145,5 +129,5 @@ def main():
     except Exception as e:
         logger.critical(f"Unexpected crash: {e}")
 
-if __name__ == "__main__":
+if __name__ == "main":
     main()
