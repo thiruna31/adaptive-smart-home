@@ -1,1 +1,6 @@
--r FuzzySmartHome/requirements.txt
+numpy
+scipy
+networkx
+scikit-fuzzy
+matplotlib
+streamlit
