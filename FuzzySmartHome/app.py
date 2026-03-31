@@ -1,6 +1,12 @@
 import sys
 import os
 
+if __name__ == "__main__" and "streamlit" not in sys.modules:
+    from streamlit.web import cli as stcli
+
+    sys.argv = ["streamlit", "run", os.path.abspath(__file__)]
+    raise SystemExit(stcli.main())
+
 # starter code for stremlit app
 import streamlit as st
 import matplotlib.pyplot as plt
